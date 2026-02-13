@@ -28,6 +28,7 @@ export const auditLog = pgTable('audit_log', {
 // Organizations/teams using TicketPing
 export const teams = pgTable('teams', {
   id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
   name: text('name').notNull(),
   emailDomain: text('email_domain').notNull(),
   createdAt: timestamp('created_at').default(sql`now()`),
