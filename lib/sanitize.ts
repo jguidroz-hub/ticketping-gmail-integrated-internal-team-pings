@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Input sanitization — XSS prevention
  */

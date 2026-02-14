@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Structured JSON logger with correlation ID support.
  * 

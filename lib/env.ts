@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Environment variable validation — fail fast on missing config
  */

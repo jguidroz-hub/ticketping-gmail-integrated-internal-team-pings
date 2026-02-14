@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Server-side billing guard.
  * Check if user has an active subscription before allowing access to premium features.

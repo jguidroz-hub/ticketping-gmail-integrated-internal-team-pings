@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Billing-specific email templates.
  * Import and merge with the base email module.

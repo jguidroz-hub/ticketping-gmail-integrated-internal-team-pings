@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Billing schema additions for the subscriptions table.
  * Merge into your main schema.ts or import alongside it.

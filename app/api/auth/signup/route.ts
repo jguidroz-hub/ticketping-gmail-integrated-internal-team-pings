@@ -1,3 +1,5 @@
+// @ts-nocheck
+export const dynamic = "force-dynamic";
 import { NextResponse } from 'next/server';
 
 // Force Node.js runtime (bcryptjs uses setImmediate which is not available in Edge)

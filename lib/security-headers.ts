@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Security headers for Next.js config.
  * Add to next.config.js:

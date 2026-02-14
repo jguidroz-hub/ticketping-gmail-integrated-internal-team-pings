@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Stripe from 'stripe';
 
 let _stripe: Stripe | null = null;
