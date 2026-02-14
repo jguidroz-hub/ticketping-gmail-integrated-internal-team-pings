@@ -1,95 +1,74 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { users } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
+// Force Node.js runtime (bcryptjs uses setImmediate which is not available in Edge)
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
-  // Rate limit: 5 signups per IP per 15 min
-  const ip = getClientIp(request);
-  const rl = checkRateLimit(`signup:${ip}`, { limit: 5, windowMs: 15 * 60 * 1000 });
-  if (!rl.allowed) {
+  if (!process.env.DATABASE_URL) {
     return NextResponse.json(
-      { error: 'Too many signup attempts. Please try again later.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+      { error: 'Database not configured. Set DATABASE_URL in environment.' },
+      { status: 503 }
     );
   }
 
   try {
-    const body = await request.json();
-    const { email, password, name } = body;
+    const { email, password, name } = await request.json();
 
-    // ── Input Validation ──────────────────────────────────
-    if (!email || typeof email !== 'string') {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
-    }
-    if (!password || typeof password !== 'string') {
-      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Email and password are required' },
+        { status: 400 }
+      );
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    // Dynamic imports to avoid build-time crashes when env vars are missing
+    const { db } = await import('@/lib/db');
+    const { users } = await import('@/lib/schema');
+    const { eq } = await import('drizzle-orm');
+    const bcrypt = (await import('bcryptjs')).default;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
-    }
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
-    }
-    if (password.length > 128) {
-      return NextResponse.json({ error: 'Password too long' }, { status: 400 });
-    }
-    if (name && (typeof name !== 'string' || name.length > 100)) {
-      return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
-    }
-
-    // ── Check Existing User ───────────────────────────────
-    const [existing] = await db
-      .select({ id: users.id })
+    // Check if user already exists
+    const existing = await db
+      .select()
       .from(users)
-      .where(eq(users.email, cleanEmail))
+      .where(eq(users.email, email))
       .limit(1);
 
-    if (existing) {
-      // Don't reveal whether email exists (security)
-      // But DO return 400 so the UI can show a helpful message
+    if (existing.length > 0) {
       return NextResponse.json(
         { error: 'An account with this email already exists' },
         { status: 400 }
       );
     }
 
-    // ── Create User ───────────────────────────────────────
-    const hashedPassword = await bcrypt.hash(password, 12); // 12 rounds for security
+    // Hash password and create user
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const [user] = await db
       .insert(users)
       .values({
         id: crypto.randomUUID(),
-        email: cleanEmail,
-        name: name?.trim() || null,
+        email,
+        name: name || null,
         hashedPassword,
       })
-      .returning({ id: users.id, email: users.email, name: users.name });
+      .returning();
 
-    // ── Welcome Email (non-blocking) ──────────────────────
+    // Send welcome email (non-blocking — don't fail signup if email fails)
     try {
       const { sendWelcomeEmail } = await import('@/lib/email');
-      await sendWelcomeEmail(cleanEmail, name?.trim());
+      await sendWelcomeEmail(email, name || undefined);
     } catch (emailErr) {
-      console.warn('[auth/signup] Welcome email failed (signup succeeded):', emailErr);
+      console.warn('Welcome email failed (signup still succeeded):', emailErr);
     }
 
-    return NextResponse.json(
-      { user: { id: user.id, email: user.email, name: user.name } },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      user: { id: user.id, email: user.email, name: user.name },
+    });
   } catch (error: any) {
-    console.error('[auth/signup] Error:', error);
+    console.error('Signup error:', error);
     return NextResponse.json(
-      { error: 'Failed to create account. Please try again.' },
+      { error: 'Failed to create account' },
       { status: 500 }
     );
   }
